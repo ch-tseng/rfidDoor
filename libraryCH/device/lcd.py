@@ -33,7 +33,10 @@ class ILI9341:
         image = image.rotate(self.LCD_Rotate).resize((self.LCD_size_w, self.LCD_size_h))
         self.disp.display(image)
 
-    def displayText(self, fontPath, fontSize=18, text="Hello world.", position=(10, 10), fill=(255,255,255)):
+    def displayClear(self):
+        self.disp.clear((0, 0, 0))
+
+    def displayText(self, fontPath, fontSize=18, text="Hello world.", position=(10, 10), fontColor=(255, 255, 255)):
         # Get rendered font width and height.
         image = self.disp.buffer
         font = ImageFont.truetype(fontPath, fontSize)
@@ -43,7 +46,7 @@ class ILI9341:
         textimage = Image.new('RGBA', (width, height), (0,0,0,0))
         # Render the text.
         textdraw = ImageDraw.Draw(textimage)
-        textdraw.text((0,0), text, font=font)
+        textdraw.text((0,0), text, font=font, fill=fontColor)
         # Rotate the text image.
         rotated = textimage.rotate(self.LCD_Rotate, expand=1)
         # Paste the text into the image, using it as a mask for transparency.
