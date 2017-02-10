@@ -31,6 +31,9 @@ class PICamera:
         self.camera.crop = crop
         self.preview = preview
 
+    def cameraResolution(self, resolution=(1280, 720)):
+        camera.resolution = resolution
+
     def cameraBrightness(self, brightness=None):
         if(brightness>100): brightness = 100
         if(brightness<0): brightness = 0

@@ -3,6 +3,7 @@
 
 import serial
 import json
+import time
 import urllib.request
 from libraryCH.device.lcd import ILI9341
 from libraryCH.device.camera import PICamera
@@ -14,7 +15,8 @@ lcd = ILI9341(LCD_Rotate=90)
 lcd.displayImg("test.jpg")
 
 camera = PICamera()
-camera.takePicture()
+camera.cameraResolution = (1280, 720)
+#camera.takePicture()
 
 ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 lcd_LineNow = 0
@@ -68,6 +70,8 @@ while True:
             jsonReply = json.loads(webReply)
 
             if(len(jsonReply)>0):
+                camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
+
                 for i in range(0, len(jsonReply)):
                     print(jsonReply[i]["EmpCName"])
                     displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
