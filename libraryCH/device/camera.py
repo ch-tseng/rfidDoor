@@ -32,7 +32,7 @@ class PICamera:
         self.preview = preview
 
     def cameraResolution(self, resolution=(1280, 720)):
-        camera.resolution = resolution
+        self.camera.resolution = resolution
 
     def cameraBrightness(self, brightness=None):
         if(brightness>100): brightness = 100
