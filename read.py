@@ -5,6 +5,7 @@ import serial
 import json
 import time
 import urllib.request
+import logging
 from libraryCH.device.lcd import ILI9341
 from libraryCH.device.camera import PICamera
 
@@ -24,6 +25,15 @@ ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 lcd_LineNow = 0
 lcd_lineHeight = 30
 lcd_totalLine = 8  #320/30
+lastUIDRead = ""
+lastTimeRead = time.time()
+
+logger = logging.getLogger('msg')
+hdlr = logging.FileHandler('/home/pi/rfid/msg.log')
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+hdlr.setFormatter(formatter)
+logger.addHandler(hdlr)
+logger.setLevel(logging.INFO)
 
 def is_json(myjson):
     try:
@@ -57,26 +67,37 @@ def displayUser(empNo, empName, uid):
 
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
-    #print (lineRead)
     lineRead = lineRead.decode('utf-8').rstrip()
 
     if(len(lineRead)>0):
         print(urlHeadString + lineRead)
         print('Length: {}'.format(len(lineRead)))
+        logger.info('Length: {}'.format(len(lineRead)))
 
         webReply = urllib.request.urlopen(urlHeadString + lineRead).read()
         webReply = webReply.decode('utf-8').rstrip()
+        logger.info('webReply: {}'.format(webReply))
         print(webReply)
 
         if(is_json(webReply)==True):
             jsonReply = json.loads(webReply)
 
             if(len(jsonReply)>0):
-                camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
+                #camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
 
                 for i in range(0, len(jsonReply)):
                     print(jsonReply[i]["EmpCName"])
-                    displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
+                    logger.info('EmpCName:'+jsonReply[i]["EmpCName"])
+                    logger.info('Uid:'+jsonReply[i]["Uid"])
+                    camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
+
+                    if ((jsonReply[i]["Uid"] not in lastUIDRead) and (lastTimeRead-time.time()>60) ):
+                        displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
+
+                    logger.info('-------------------------------------------------')
+                    lastUIDRead += ","+jsonReply[i]["Uid"]
+                    lastTimeRead = time.time()
+                    
 
         else:
             lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
