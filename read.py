@@ -10,6 +10,7 @@ import logging
 import os
 import random
 from libraryCH.device.lcd import ILI9341
+import paho.mqtt.client as mqtt
 
 #這台樹莓除了作為接收RFID, 是否要啟用相機功能
 localCameraEnabled = False
@@ -49,6 +50,14 @@ lcd_totalLine = 8  # LCD的行數 (320/30=8)
 #上次讀取到TAG的內容和時間
 lastUIDRead = ""
 lastTimeRead = time.time()
+
+#MQTT
+ChannelPublish = "Door-camera"
+MQTTuser = "chtseng"
+MQTTpwd = "chtseng"
+MQTTaddress = "akai-chen-pc3.sunplusit.com.tw"
+MQTTport = 1883
+MQTTtimeout = 60
 
 #logging記錄
 logger = logging.getLogger('msg')
@@ -101,10 +110,40 @@ def speakWelcome():
 
     mp3Number = str(random.randint(1, 3))
 
-    if(nowHour<11 and nowHour>5):
+    if(nowHour<10 and nowHour>5):
         os.system('omxplayer --no-osd voice/gowork' + mp3Number + '.mp3')
     if(nowHour<21 and nowHour>17):
         os.system('omxplayer --no-osd voice/afterwork' + mp3Number + '.mp3')
+
+# MQTT___________________________________________________________________________
+def on_connect(mosq, obj, rc):
+    logger.info('MQTT Connected.')
+    print("Connected: " + str(rc))
+
+def on_message(mosq, obj, msg):
+    print("MQTT message received.")
+
+def on_publish(mosq, obj, mid):
+    logger.info("Published to MQTT broker")
+    print("mid: " + str(mid))
+
+def on_subscribe(mosq, obj, mid, granted_qos):
+    print("Subscribed: " + str(mid) + " " + str(granted_qos))
+
+def on_log(mosq, obj, level, string):
+    print(string)
+
+mqttc = mqtt.Client()
+# Assign event callbacks
+mqttc.on_message = on_message
+mqttc.on_connect = on_connect
+mqttc.on_publish = on_publish
+mqttc.on_subscribe = on_subscribe
+# Connect
+mqttc.username_pw_set(MQTTuser, MQTTpwd)
+mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+
+#-------------------------------------------------------------------------
 
 
 while True:
@@ -114,7 +153,7 @@ while True:
     if(len(lineRead)>0):
         print(urlHeadString + lineRead)
         print('Length: {}'.format(len(lineRead)))
-        logger.info('Length: {}'.format(len(lineRead)))
+        logger.info("Arduino: " + lineRead)
 
         webReply = urllib.request.urlopen(urlHeadString + lineRead).read()
         webReply = webReply.decode('utf-8').rstrip()
@@ -138,8 +177,10 @@ while True:
                         displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
 
                         if (jsonReply[i]["TagType"]=="E"):
+                            mqttc.publish(ChannelPublish, "E")
                             speakWelcome()
                         elif (jsonReply[i]["TagType"]=="A"):
+                            mqttc.publish(ChannelPublish, "A")
                             os.system('omxplayer --no-osd voice/warning1.mp3')
 
                     logger.info('-------------------------------------------------')
@@ -152,8 +193,9 @@ while True:
         else:
             lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
 
-        if(time.time()-lastTimeRead>screenSaverDelay):
+        if((time.time()-lastTimeRead)>screenSaverDelay):
             print("Display screen saveer.")
+            logger.info("Display screen saveer.")
             lcd.displayImg("rfidbg.jpg")
 
 ser.close()
