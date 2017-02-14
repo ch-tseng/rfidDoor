@@ -4,30 +4,53 @@
 import serial
 import json
 import time
+import datetime
 import urllib.request
 import logging
+import os
+import random
 from libraryCH.device.lcd import ILI9341
-from libraryCH.device.camera import PICamera
 
+#這台樹莓除了作為接收RFID, 是否要啟用相機功能
+localCameraEnabled = False
+#啟用的話, 儲存拍攝相片的位置
 ImgFacePath = "/var/www/html/captured/"
+
+#RFID TAG資訊要傳到何處? 下方為使用RESTFUL
 urlHeadString = "http://data.sunplusit.com/Api/DoorRFIDInfo?code=83E4621643F7B2E148257244000655E3&rfid="
 
-lcd = ILI9341(LCD_Rotate=90)
-lcd.displayImg("test.jpg")
+#LCD顯示設定
+lcd = ILI9341(LCD_size_w=240, LCD_size_h=320, LCD_Rotate=90)
 
-camera = PICamera()
-camera.CameraConfig(rotation=180)
-#camera.cameraResolution = (1280, 720)
-camera.cameraResolution(resolution=(1280, 720))
-#camera.takePicture()
+#開機及螢幕保護畫面
+screenSaverDelay = 30  #刷卡顯示, 幾秒後回到螢幕保護畫面
+lcd.displayImg("rfidbg.jpg")
 
+
+#-----------------------------------------------------------------------------------------------------
+#下方設定比較不需要變動
+#-----------------------------------------------------------------------------------------------------
+
+#相機設定
+if(localCameraEnabled==True):
+    from libraryCH.device.camera import PICamera
+    camera = PICamera()
+    camera.CameraConfig(rotation=180)  #相機旋轉角度
+    camera.cameraResolution(resolution=(1280, 720))   #拍攝的相片尺寸
+
+#從USB接收RFID 訊息
 ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+
+#LCD設定
 lcd_LineNow = 0
-lcd_lineHeight = 30
-lcd_totalLine = 8  #320/30
+lcd_lineHeight = 30  #行的高度
+lcd_totalLine = 8  # LCD的行數 (320/30=8)
+
+#上次讀取到TAG的內容和時間
 lastUIDRead = ""
 lastTimeRead = time.time()
 
+#logging記錄
 logger = logging.getLogger('msg')
 hdlr = logging.FileHandler('/home/pi/rfid/msg.log')
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -35,6 +58,7 @@ hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
 logger.setLevel(logging.INFO)
 
+#判斷是否為JSON格式
 def is_json(myjson):
     try:
         json_object = json.loads(myjson)
@@ -44,9 +68,11 @@ def is_json(myjson):
 
     return True
 
+#將行數轉為pixels
 def lcd_Line2Pixel(lineNum):
     return lcd_lineHeight*lineNum
 
+#LCD移到下一行, 若超過設定則清螢幕並回到第0行
 def lcd_nextLine():
     global lcd_LineNow
     lcd_LineNow+=1
@@ -54,16 +80,32 @@ def lcd_nextLine():
         lcd.displayClear()
         lcd_LineNow = 0
 
+#LCD顯示刷卡內容
 def displayUser(empNo, empName, uid):
     global lcd_LineNow
 
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M')
     if(lcd_LineNow>0): lcd_nextLine()
 
-    lcd.displayText("cfont1.ttf", fontSize=18, text=empNo, position=(lcd_Line2Pixel(lcd_LineNow), 110), fontColor=(253,244,6) )
+    lcd.displayText("cfont1.ttf", fontSize=20, text=st, position=(lcd_Line2Pixel(lcd_LineNow), 180), fontColor=(253,244,6) )
+    lcd.displayText("cfont1.ttf", fontSize=20, text=empNo, position=(lcd_Line2Pixel(lcd_LineNow), 110) )
     lcd.displayText("cfont1.ttf", fontSize=26, text=empName, position=(lcd_Line2Pixel(lcd_LineNow), 10) )
 
     lcd_nextLine()
     lcd.displayText("cfont1.ttf", fontSize=22, text=uid, position=(lcd_Line2Pixel(lcd_LineNow), 10), fontColor=(88,88,87) )
+
+def speakWelcome():
+    dt = list(time.localtime())
+    nowHour = dt[3]
+    nowMinute = dt[4]
+
+    mp3Number = str(random.randint(1, 3))
+
+    if(nowHour<11 and nowHour>5):
+        os.system('omxplayer --no-osd voice/gowork' + mp3Number + '.mp3')
+    if(nowHour<21 and nowHour>17):
+        os.system('omxplayer --no-osd voice/afterwork' + mp3Number + '.mp3')
+
 
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
@@ -83,23 +125,35 @@ while True:
             jsonReply = json.loads(webReply)
 
             if(len(jsonReply)>0):
-                #camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
 
                 for i in range(0, len(jsonReply)):
                     print(jsonReply[i]["EmpCName"])
                     logger.info('EmpCName:'+jsonReply[i]["EmpCName"])
                     logger.info('Uid:'+jsonReply[i]["Uid"])
-                    camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
+                    if(localCameraEnabled==True):
+                        camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
 
-                    if ((jsonReply[i]["Uid"] not in lastUIDRead) and (lastTimeRead-time.time()>60) ):
+                    if ((jsonReply[i]["Uid"] not in lastUIDRead) or (lastTimeRead-time.time()>60)):
+                        print("Display on LCD screen.")
                         displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
 
+                        if (jsonReply[i]["TagType"]=="E"):
+                            speakWelcome()
+                        elif (jsonReply[i]["TagType"]=="A"):
+                            os.system('omxplayer --no-osd voice/warning1.mp3')
+
                     logger.info('-------------------------------------------------')
+
+                    if i==0: lastUIDRead=""
                     lastUIDRead += ","+jsonReply[i]["Uid"]
                     lastTimeRead = time.time()
                     
 
         else:
             lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
+
+        if(time.time()-lastTimeRead>screenSaverDelay):
+            print("Display screen saveer.")
+            lcd.displayImg("rfidbg.jpg")
 
 ser.close()
