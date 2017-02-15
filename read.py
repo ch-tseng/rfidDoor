@@ -46,6 +46,7 @@ ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 lcd_LineNow = 0
 lcd_lineHeight = 30  #行的高度
 lcd_totalLine = 8  # LCD的行數 (320/30=8)
+screenSaverNow = False
 
 #上次讀取到TAG的內容和時間
 lastUIDRead = ""
@@ -163,6 +164,7 @@ while True:
 
         if(is_json(webReply)==True):
             jsonReply = json.loads(webReply)
+            screenSaverNow = False
 
             if(len(jsonReply)>0):
                 print("TEST:")
@@ -202,9 +204,10 @@ while True:
 
     print(time.time()-lastTimeRead)  
 
-    if((time.time()-lastTimeRead)>screenSaverDelay):
+    if((time.time()-lastTimeRead)>screenSaverDelay and screenSaverNow==False):
         print("Display screen saveer.")
         logger.info("Display screen saveer.")
         lcd.displayImg("rfidbg.jpg")
+        screenSaverNow = True
 
 ser.close()
