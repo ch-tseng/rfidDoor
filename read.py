@@ -141,10 +141,11 @@ mqttc.on_publish = on_publish
 mqttc.on_subscribe = on_subscribe
 # Connect
 mqttc.username_pw_set(MQTTuser, MQTTpwd)
-mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+#mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
 
 #-------------------------------------------------------------------------
 
+mqttc.publish(ChannelPublish, 13545)
 
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
@@ -164,23 +165,27 @@ while True:
             jsonReply = json.loads(webReply)
 
             if(len(jsonReply)>0):
+                print("TEST:")
+                print(jsonReply[0]["EmpNo"])
+                mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+                #mqttc.publish(ChannelPublish, "TEST MQTT")
+                mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
 
                 for i in range(0, len(jsonReply)):
-                    print(jsonReply[i]["EmpCName"])
                     logger.info('EmpCName:'+jsonReply[i]["EmpCName"])
                     logger.info('Uid:'+jsonReply[i]["Uid"])
+
                     if(localCameraEnabled==True):
                         camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
 
-                    if ((jsonReply[i]["Uid"] not in lastUIDRead) or (lastTimeRead-time.time()>60)):
+                    if ((jsonReply[i]["Uid"] not in lastUIDRead) or (time.time()-lastTimeRead>60)):
                         print("Display on LCD screen.")
+                        logger.info('Display on screen and speak.')
                         displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
 
                         if (jsonReply[i]["TagType"]=="E"):
-                            mqttc.publish(ChannelPublish, "E")
                             speakWelcome()
                         elif (jsonReply[i]["TagType"]=="A"):
-                            mqttc.publish(ChannelPublish, "A")
                             os.system('omxplayer --no-osd voice/warning1.mp3')
 
                     logger.info('-------------------------------------------------')
@@ -190,12 +195,16 @@ while True:
                     lastTimeRead = time.time()
                     
 
-        else:
-            lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
+            else:
+                lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
+                logger.info('Unknow ID: ' + lineRead)
+                lastTimeRead = time.time()
 
-        if((time.time()-lastTimeRead)>screenSaverDelay):
-            print("Display screen saveer.")
-            logger.info("Display screen saveer.")
-            lcd.displayImg("rfidbg.jpg")
+    print(time.time()-lastTimeRead)  
+
+    if((time.time()-lastTimeRead)>screenSaverDelay):
+        print("Display screen saveer.")
+        logger.info("Display screen saveer.")
+        lcd.displayImg("rfidbg.jpg")
 
 ser.close()
