@@ -146,7 +146,7 @@ mqttc.username_pw_set(MQTTuser, MQTTpwd)
 
 #-------------------------------------------------------------------------
 
-mqttc.publish(ChannelPublish, 13545)
+#mqttc.publish(ChannelPublish, "TEST")
 
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
@@ -167,21 +167,17 @@ while True:
             screenSaverNow = False
 
             if(len(jsonReply)>0):
-                print("TEST:")
-                print(jsonReply[0]["EmpNo"])
-                mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
-                #mqttc.publish(ChannelPublish, "TEST MQTT")
-                mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
 
                 for i in range(0, len(jsonReply)):
-                    logger.info('EmpCName:'+jsonReply[i]["EmpCName"])
-                    logger.info('Uid:'+jsonReply[i]["Uid"])
+                    logger.info('EmpNo:'+jsonReply[0]["EmpNo"]+'  EmpCName:'+jsonReply[i]["EmpCName"]+' Uid:'+jsonReply[i]["Uid"])
 
                     if(localCameraEnabled==True):
                         camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
 
                     if ((jsonReply[i]["Uid"] not in lastUIDRead) or (time.time()-lastTimeRead>60)):
                         print("Display on LCD screen.")
+                        mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+                        mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
                         logger.info('Display on screen and speak.')
                         displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
 
@@ -201,8 +197,6 @@ while True:
                 lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
                 logger.info('Unknow ID: ' + lineRead)
                 lastTimeRead = time.time()
-
-    print(time.time()-lastTimeRead)  
 
     if((time.time()-lastTimeRead)>screenSaverDelay and screenSaverNow==False):
         print("Display screen saveer.")
