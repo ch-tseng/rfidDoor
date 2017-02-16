@@ -140,13 +140,11 @@ mqttc.on_message = on_message
 mqttc.on_connect = on_connect
 mqttc.on_publish = on_publish
 mqttc.on_subscribe = on_subscribe
-# Connect
 mqttc.username_pw_set(MQTTuser, MQTTpwd)
-#mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
 
 #-------------------------------------------------------------------------
-
-#mqttc.publish(ChannelPublish, "TEST")
+mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+mqttc.publish(ChannelPublish, '[{"Uid":"30-0-e2-0-81-81-81-6-2-55-13-50-8c-a9","EmpNo":"200002","EmpCName":"龔執豪","TagType":"E"}]')
 
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
@@ -177,7 +175,8 @@ while True:
                     if ((jsonReply[i]["Uid"] not in lastUIDRead) or (time.time()-lastTimeRead>60)):
                         print("Display on LCD screen.")
                         mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
-                        mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
+                        #mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
+                        mqttc.publish(ChannelPublish, webReply)
                         logger.info('Display on screen and speak.')
                         displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
 
