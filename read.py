@@ -13,9 +13,20 @@ from libraryCH.device.lcd import ILI9341
 import paho.mqtt.client as mqtt
 
 #這台樹莓除了作為接收RFID, 是否要啟用相機功能
-localCameraEnabled = False
-#啟用的話, 儲存拍攝相片的位置
-ImgFacePath = "/var/www/html/captured/"
+localCameraEnabled = True
+cameraType = 1  # 0 --> PICamera . 1 --> Web Camera
+
+#儲放相片的主目錄
+picturesPath = "/var/www/html/rfidface/"
+#相機旋轉角度 (for PICamera)
+cameraRotate = 0
+#拍攝的相片尺寸 (for PICamera)
+photoSize = (1280, 720)
+#一次要連拍幾張
+numPics = 2
+#間隔幾毫秒
+picDelay = 0.1
+
 
 #RFID TAG資訊要傳到何處? 下方為使用RESTFUL
 urlHeadString = "http://data.sunplusit.com/Api/DoorRFIDInfo?code=83E4621643F7B2E148257244000655E3&rfid="
@@ -34,10 +45,11 @@ lcd.displayImg("rfidbg.jpg")
 
 #相機設定
 if(localCameraEnabled==True):
-    from libraryCH.device.camera import PICamera
-    camera = PICamera()
-    camera.CameraConfig(rotation=180)  #相機旋轉角度
-    camera.cameraResolution(resolution=(1280, 720))   #拍攝的相片尺寸
+    if(cameraType==0):
+        from libraryCH.device.camera import PICamera
+        camera = PICamera()
+        camera.CameraConfig(rotation=180)  #相機旋轉角度
+        camera.cameraResolution(resolution=(1280, 720))   #拍攝的相片尺寸
 
 #從USB接收RFID 訊息
 ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
@@ -123,10 +135,29 @@ def speakWelcome():
 
     mp3Number = str(random.randint(1, 3))
 
-    if(nowHour<10 and nowHour>5):
+    if(nowHour<10 and nowHour>=6):
         os.system('omxplayer --no-osd voice/gowork' + mp3Number + '.mp3')
-    if(nowHour<21 and nowHour>17):
+    if(nowHour<22 and ((nowHour==17 and nowMinute>30) or (nowHour>=18)) ):
         os.system('omxplayer --no-osd voice/afterwork' + mp3Number + '.mp3')
+
+def takePictures(saveFolder="others"):
+    global picDelay, numPics, picturesPath, cameraType
+
+    if(os.path.isdir(picturesPath+saveFolder)==False):
+        os.makedirs(picturesPath+saveFolder)
+
+    savePath = picturesPath + saveFolder + "/" + str(time.time())
+    for i in range(0,numPics):
+        if(cameraType==0 or cameraType==1):
+            imagePath = savePath + "-" + str(i) + ".jpg"
+
+            if(cameraType==0):
+                camera.takePicture(imagePath)
+            elif(cameraType==1):
+                os.system('fswebcam -p YUYV -d /dev/video0 --no-banner -r 640x480 --rotate 90 ' + imagePath)
+
+            logger.info("TakePicture " + str(i) + " to " + imagePath)
+            time.sleep(picDelay)
 
 # MQTT___________________________________________________________________________
 def on_connect(mosq, obj, rc):
@@ -161,7 +192,7 @@ mqttc.username_pw_set(MQTTuser, MQTTpwd)
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
     lineRead = lineRead.decode('utf-8').rstrip()
-    print (lineRead)
+    #print (lineRead)
     if(len(lineRead)>0):
         print(urlHeadString + lineRead)
         print('Length: {}'.format(len(lineRead)))
@@ -182,14 +213,11 @@ while True:
         if(is_json(webReply)==True):
             jsonReply = json.loads(webReply)
             screenSaverNow = False
-            print ("JSON LEN:"+str(len(jsonReply)))
+
             if(len(jsonReply)>0):
                 #print ("JSON LEN:"+str(len(jsonReply)))
                 for i in range(0, len(jsonReply)):
                     logger.info('EmpNo:'+jsonReply[0]["EmpNo"]+'  EmpCName:'+jsonReply[i]["EmpCName"]+' Uid:'+jsonReply[i]["Uid"])
-
-                    if(localCameraEnabled==True):
-                        camera.takePicture("/var/www/html/rfidface/"+jsonReply[0]["EmpNo"]+str(time.time())+".jpg")
 
                     if ((jsonReply[i]["Uid"] not in lastUIDRead) or (time.time()-lastTimeRead>60)):
                         print("Display on LCD screen.")
@@ -198,6 +226,9 @@ while True:
                         mqttc.publish(ChannelPublish, webReply)
                         logger.info('Display on screen and speak.')
                         displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
+
+                        if(localCameraEnabled==True):
+                            takePictures(str(jsonReply[0]["EmpNo"]))
 
                         if (jsonReply[i]["TagType"]=="E"):
                             speakWelcome()
@@ -216,6 +247,7 @@ while True:
                 print(lengthTotal)
                 displayUnknow("未知TAG", lineRead[:int(lengthTotal/2)], lineRead[int(lengthTotal/2):])
                 logger.info('Unknow ID: ' + lineRead)
+                lastUIDRead = lineRead
                 lastTimeRead = time.time()
 
     if((time.time()-lastTimeRead)>screenSaverDelay and screenSaverNow==False):
