@@ -7,7 +7,7 @@ import time
 import datetime
 import urllib.request
 import logging
-import os
+import os,sys
 import random
 from libraryCH.device.lcd import ILI9341
 import paho.mqtt.client as mqtt
@@ -104,6 +104,18 @@ def displayUser(empNo, empName, uid):
     lcd_nextLine()
     lcd.displayText("cfont1.ttf", fontSize=22, text=uid, position=(lcd_Line2Pixel(lcd_LineNow), 10), fontColor=(88,88,87) )
 
+def displayUnknow(empNo, empName, uid):
+    global lcd_LineNow
+
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M')
+    if(lcd_LineNow>0): lcd_nextLine()
+
+    lcd.displayText("cfont1.ttf", fontSize=22, text=empNo, position=(lcd_Line2Pixel(lcd_LineNow), 240), fontColor=(253,244,6) )
+    lcd.displayText("cfont1.ttf", fontSize=22, text=empName, position=(lcd_Line2Pixel(lcd_LineNow), 10) )
+
+    lcd_nextLine()
+    lcd.displayText("cfont1.ttf", fontSize=22, text=uid, position=(lcd_Line2Pixel(lcd_LineNow), 10) )
+
 def speakWelcome():
     dt = list(time.localtime())
     nowHour = dt[3]
@@ -143,29 +155,36 @@ mqttc.on_subscribe = on_subscribe
 mqttc.username_pw_set(MQTTuser, MQTTpwd)
 
 #-------------------------------------------------------------------------
-mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
-mqttc.publish(ChannelPublish, '[{"Uid":"30-0-e2-0-81-81-81-6-2-55-13-50-8c-a9","EmpNo":"200002","EmpCName":"龔執豪","TagType":"E"}]')
+#mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+#mqttc.publish(ChannelPublish, '[{"Uid":"30-0-e2-0-81-81-81-6-2-55-13-50-8c-a9","EmpNo":"200002","EmpCName":"龔執豪","TagType":"E"}]')
 
 while True:
     lineRead = ser.readline()   # read a '\n' terminated line
     lineRead = lineRead.decode('utf-8').rstrip()
-
+    print (lineRead)
     if(len(lineRead)>0):
         print(urlHeadString + lineRead)
         print('Length: {}'.format(len(lineRead)))
         logger.info("Arduino: " + lineRead)
 
-        webReply = urllib.request.urlopen(urlHeadString + lineRead).read()
-        webReply = webReply.decode('utf-8').rstrip()
-        logger.info('webReply: {}'.format(webReply))
-        print(webReply)
+        try:
+            webReply = urllib.request.urlopen(urlHeadString + lineRead).read()
+            webReply = webReply.decode('utf-8').rstrip()
+            logger.info('webReply: {}'.format(webReply))
+            print("webReply:" + webReply)
 
+        except Exception:
+            print("Unexpected error:", sys.exc_info()[0])
+            logger.info('Unexpected error:' + str(sys.exc_info()[0]))
+            webReply = "[]"
+            pass
+       
         if(is_json(webReply)==True):
             jsonReply = json.loads(webReply)
             screenSaverNow = False
-
+            print ("JSON LEN:"+str(len(jsonReply)))
             if(len(jsonReply)>0):
-
+                #print ("JSON LEN:"+str(len(jsonReply)))
                 for i in range(0, len(jsonReply)):
                     logger.info('EmpNo:'+jsonReply[0]["EmpNo"]+'  EmpCName:'+jsonReply[i]["EmpCName"]+' Uid:'+jsonReply[i]["Uid"])
 
@@ -193,7 +212,9 @@ while True:
                     
 
             else:
-                lcd.displayText("cfont1.ttf", fontSize=24, text=lineRead, position=(lcd_Line2Pixel(0), 10) )
+                lengthTotal = len(lineRead)
+                print(lengthTotal)
+                displayUnknow("未知TAG", lineRead[:int(lengthTotal/2)], lineRead[int(lengthTotal/2):])
                 logger.info('Unknow ID: ' + lineRead)
                 lastTimeRead = time.time()
 
