@@ -19,7 +19,7 @@
 #define TXPIN 9
 SoftwareSerial myserial(RXPIN,TXPIN);
 
-#define LCD_DISPLAY 1  //是否要啟用LCD顯示? (SDA ->A4, SDL->A5)
+#define LCD_DISPLAY 0  //是否要啟用LCD顯示? (SDA ->A4, SDL->A5)
 #define NORMAL_TAG_HEX_LENGTH 22  //正常的TAG, HEX格式轉成String的長度, 例如44-16-1-ed-ac-3c-d-e-30-0-e2-0-81-81-81-6-2-55-13-30-91-b 為 22
 #define maxDelayTimeSameTag 60000  //幾秒內重複的內容就忽略
 #define debugOutput 0
@@ -185,15 +185,17 @@ void readSerialOut() {
         Serial.println(rfidGet);
         
         lastScanTime = millis();
-        displayLCD(0, "                    ");
-        displayLCD(1, "                    ");
-        displayLCD(2, "                    ");
-        displayLCD(3, "                    ");
-    
+        if(LCD_DISPLAY==1) {
+          displayLCD(0, "                    ");
+          displayLCD(1, "                    ");
+          displayLCD(2, "                    ");
+          displayLCD(3, "                    ");
+        
         //unsigned int rfidLength = rfidGet.length();
         //unsigned int lines = rfidLength/20;
         displayLCD(0, rfidGet);
         //lcd.clear();
+        }
       }        
     }else{
       rfidGet = lastScan;
@@ -226,7 +228,7 @@ void loop() {
     readSerialOut();
   }else{
     myserial.print(command_scantag);
-    delay (180);
+    delay (30);
   }
 //  i++;
 }
