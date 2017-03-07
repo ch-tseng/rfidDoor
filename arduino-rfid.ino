@@ -23,7 +23,8 @@ SoftwareSerial myserial(RXPIN,TXPIN);
 #define NORMAL_TAG_HEX_LENGTH 22  //正常的TAG, HEX格式轉成String的長度, 例如44-16-1-ed-ac-3c-d-e-30-0-e2-0-81-81-81-6-2-55-13-30-91-b 為 22
 #define maxDelayTimeSameTag 60000  //幾秒內重複的內容就忽略
 #define debugOutput 0
-#define delayTime 120
+#define delayTime_after 90
+#define delayTime_before 30
 
 //-->  Command: Inventory 
 //-->     [0] [1]   [2]     [3]           [4]   [5]   [6~ ]
@@ -227,8 +228,10 @@ void loop() {
   
   if(myserial.available()) {
     readSerialOut();
+    delay(delayTime_before);
   }else{ 
-    myserial.print(command_scantag);
+    myserial.print(command_inventorytag);
+    delay(delayTime_after);
     /*
     if(i == true) {
       myserial.print(command_scantag);
@@ -239,6 +242,6 @@ void loop() {
     }
     */
   }
-delay (delayTime);
+  
 
 }
