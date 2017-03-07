@@ -226,9 +226,19 @@ void loop() {
   
   if(myserial.available()) {
     readSerialOut();
-  }else{
-    myserial.print(command_scantag);
-    delay (30);
+  }else{ 
+    //myserial.print(command_scantag);
+    myserial.print(command_inventorytag_next);
+    delay (90);
+    if(myserial.available()) {
+      readSerialOut();
+    }else{
+      myserial.print(command_inventorytag);
+      delay (90);
+      if(myserial.available()) {
+        readSerialOut();
+      }
+    }
   }
 //  i++;
 }
