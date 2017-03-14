@@ -12,11 +12,6 @@ import random
 from libraryCH.device.lcd import ILI9341
 import paho.mqtt.client as mqtt
 
-debugPrint = True
-
-#幾秒內重複的TAG不算.
-tagRepeatSeconds = 30
-
 #這台樹莓除了作為接收RFID, 是否要啟用相機功能
 localCameraEnabled = True
 cameraType = 1  # 0 --> PICamera . 1 --> Web Camera
@@ -206,98 +201,79 @@ mqttc.on_publish = on_publish
 mqttc.on_subscribe = on_subscribe
 mqttc.username_pw_set(MQTTuser, MQTTpwd)
 
-#for tags read
-lastTail = ""  #last TAG seen
-lastTailTime = 0
-
 #-------------------------------------------------------------------------
 #mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
 #mqttc.publish(ChannelPublish, '[{"Uid":"30-0-e2-0-81-81-81-6-2-55-13-50-8c-a9","EmpNo":"200002","EmpCName":"龔執豪","TagType":"E"}]')
 #speakWelcome(uid="200002")
 while True:
-
     lineRead = ser.readline()   # read a '\n' terminated line
     #print (lineRead)
     #lineRead = lineRead.decode('utf-8').rstrip()
-    lineRead = lineRead.decode('ISO-8859-1')
-    if(debugPrint==True): print (lineRead)
-
+    lineRead = lineRead.decode('utf-8')
+    print (lineRead)
     if(len(lineRead)>0):
-        #print(urlHeadString + lineRead)
-        #print('Length: {}'.format(len(lineRead)))
+        print(urlHeadString + lineRead)
+        print('Length: {}'.format(len(lineRead)))
         logger.info("Arduino: " + lineRead)
 
+        try:
+            webReply = urllib.request.urlopen(urlHeadString + lineRead).read()
+            webReply = webReply.decode('utf-8').rstrip()
+            #webReply = webReply.decode('ISO-8859-1').rstrip()
+            logger.info('webReply: {}'.format(webReply))
+            print("webReply:" + webReply)
 
-        head = lineRead[:5].strip()
-        tail = lineRead[5:].strip()
-        if(debugPrint==True):
-            print('lineRead[:5]={}  lineRead[5:]=={}'.format(head,tail))
-            print('timer:{}   lastTag={}  nowTag={}'.format(time.time()-lastTailTime, lastTail, tail))
+        except Exception:
+            print("Unexpected error:", sys.exc_info()[0])
+            logger.info('Unexpected error:' + str(sys.exc_info()[0]))
+            webReply = "[]"
+            pass
+       
+        if(is_json(webReply)==True):
+            jsonReply = json.loads(webReply)
+            screenSaverNow = False
 
-        if(head=="TAG:" and (tail != lastTail) and (time.time()-lastTailTime>tagRepeatSeconds)):
-     
-            try:
-                webReply = urllib.request.urlopen(urlHeadString + tail).read()
-                webReply = webReply.decode('utf-8').rstrip()
-                #webReply = webReply.decode('ISO-8859-1').rstrip()
-                logger.info('webReply: {}'.format(webReply))
-                if(debugPrint==True):
-                    print(urlHeadString + tail)
-                    print("webReply:" + webReply)
+            if(len(jsonReply)>0):
+                #print ("JSON LEN:"+str(len(jsonReply)))
+                for i in range(0, len(jsonReply)):
+                    logger.info('EmpNo:'+jsonReply[0]["EmpNo"]+'  EmpCName:'+jsonReply[i]["EmpCName"]+' Uid:'+jsonReply[i]["Uid"])
 
-            except Exception:
-                print("Unexpected error:", sys.exc_info()[0])
-                logger.info('Unexpected error:' + str(sys.exc_info()[0]))
-                webReply = "[]"
-                pass
-           
-            if(is_json(webReply)==True):
-                jsonReply = json.loads(webReply)
-                screenSaverNow = False
+                    if ((jsonReply[i]["Uid"] not in lastUIDRead) or (time.time()-lastTimeRead>60)):
+                        print("Display on LCD screen.")
+                        mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
+                        #mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
+                        mqttc.publish(ChannelPublish, webReply)
+                        logger.info('Display on screen and speak.')
+                        displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
 
-                if(len(jsonReply)>0):
-                    #print ("JSON LEN:"+str(len(jsonReply)))
-                    lastTail = tail
-                    lastTailTime = time.time()
+                        if (jsonReply[i]["TagType"]=="E"):
+                            speakWelcome(uid=str(jsonReply[i]["EmpNo"]))
+                        elif (jsonReply[i]["TagType"]=="A"):
+                            os.system('omxplayer --no-osd voice/warning1.mp3')
 
-                    for i in range(0, len(jsonReply)):
-                        logger.info('EmpNo:'+jsonReply[0]["EmpNo"]+'  EmpCName:'+jsonReply[i]["EmpCName"]+' Uid:'+jsonReply[i]["Uid"])
-
-                        if ((jsonReply[i]["Uid"] not in lastUIDRead) or (time.time()-lastTimeRead>tagRepeatSeconds)):
-                            if(debugPrint==True): print("Display on LCD screen.")
-                            mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
-                            #mqttc.publish(ChannelPublish, jsonReply[0]["EmpNo"])
-                            mqttc.publish(ChannelPublish, webReply)
-                            logger.info('Display on screen and speak.')
-                            displayUser(jsonReply[i]["EmpNo"], jsonReply[i]["EmpCName"], jsonReply[i]["Uid"])
-
-                            if (jsonReply[i]["TagType"]=="E"):
-                                speakWelcome(uid=str(jsonReply[i]["EmpNo"]))
-                            elif (jsonReply[i]["TagType"]=="A"):
-                                os.system('omxplayer --no-osd voice/warning1.mp3')
-
-                            if(localCameraEnabled==True):
-                                takePictures(str(jsonReply[0]["EmpNo"]))
+                        if(localCameraEnabled==True):
+                            takePictures(str(jsonReply[0]["EmpNo"]))
 
 
-                        logger.info('-------------------------------------------------')
+                    logger.info('-------------------------------------------------')
 
-                        if i==0: lastUIDRead=""
-                        lastUIDRead += ","+jsonReply[i]["Uid"]
-                        lastTimeRead = time.time()
+                    if i==0: lastUIDRead=""
+                    lastUIDRead += ","+jsonReply[i]["Uid"]
+                    lastTimeRead = time.time()
                     
 
-                else:
-                    lengthTotal = len(lineRead)
-               #     displayUnknow("未知TAG", lineRead[:int(lengthTotal/2)], lineRead[int(lengthTotal/2):])
-                    logger.info('Unknow ID: ' + lineRead)
-               #     lastUIDRead = lineRead
-               #     lastTimeRead = time.time()
+            else:
+                lengthTotal = len(lineRead)
+                print(lengthTotal)
+           #     displayUnknow("未知TAG", lineRead[:int(lengthTotal/2)], lineRead[int(lengthTotal/2):])
+                logger.info('Unknow ID: ' + lineRead)
+           #     lastUIDRead = lineRead
+           #     lastTimeRead = time.time()
 
-        if((time.time()-lastTimeRead)>screenSaverDelay and screenSaverNow==False):
-            if(debugPrint==True): print("Display screen saveer.")
-            logger.info("Display screen saveer.")
-            lcd.displayImg("rfidbg.jpg")
-            screenSaverNow = True
+    if((time.time()-lastTimeRead)>screenSaverDelay and screenSaverNow==False):
+        print("Display screen saveer.")
+        logger.info("Display screen saveer.")
+        lcd.displayImg("rfidbg.jpg")
+        screenSaverNow = True
 
 ser.close()
