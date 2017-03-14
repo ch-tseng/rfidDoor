@@ -21,10 +21,10 @@ SoftwareSerial myserial(RXPIN,TXPIN);
 
 #define LCD_DISPLAY 0  //是否要啟用LCD顯示? (SDA ->A4, SDL->A5)
 #define NORMAL_TAG_HEX_LENGTH 22  //正常的TAG, HEX格式轉成String的長度, 例如44-16-1-ed-ac-3c-d-e-30-0-e2-0-81-81-81-6-2-55-13-30-91-b 為 22
-#define maxDelayTimeSameTag 60000  //幾秒內重複的內容就忽略
+#define maxDelayTimeSameTag 30000  //幾秒內重複的內容就忽略
 #define debugOutput 0
-#define delayTime_after 90
-#define delayTime_before 30
+#define delayTime_after 60
+#define delayTime_before 15
 
 //-->  Command: Inventory 
 //-->     [0] [1]   [2]     [3]           [4]   [5]   [6~ ]
@@ -166,6 +166,7 @@ void readSerialOut() {
       
     
     if(i>=NORMAL_TAG_HEX_LENGTH) {
+      /*
       //Serial.println("i>=NORMAL_TAG_HEX_LENGTH ");
       
       if(compareTag(lastScan,rfidGet)==0) {  // last tag and this tag are different
@@ -179,12 +180,14 @@ void readSerialOut() {
           if(debugOutput==1) Serial.println("Same tag, but has to wait.");        
         }
       }
-
+    */
+    submitData = 1;
+    
       if(submitData==1) {
         if(debugOutput==1) {
           Serial.print(" TAG numbers: ");Serial.print(getValue(rfidGet,'-',2)); Serial.print("---> ");
         }
-        Serial.println(rfidGet);
+        Serial.print(" TAG:"); Serial.println(rfidGet);
         
         lastScanTime = millis();
         if(LCD_DISPLAY==1) {
@@ -200,7 +203,9 @@ void readSerialOut() {
         }
       }        
     }else{
+      Serial.println(rfidGet);
       rfidGet = lastScan;
+      
     }
     if(debugOutput==1) Serial.println("--------------------------------------------------------------------------------------");
 }
@@ -230,7 +235,8 @@ void loop() {
     readSerialOut();
     delay(delayTime_before);
   }else{ 
-    myserial.print(command_inventorytag);
+    
+    myserial.print(command_scantag);
     delay(delayTime_after);
     /*
     if(i == true) {
@@ -240,6 +246,7 @@ void loop() {
       myserial.print(command_scantag_next);
       i = true;
     }
+    delay(delayTime_after);
     */
   }
   
