@@ -23,8 +23,8 @@ SoftwareSerial myserial(RXPIN,TXPIN);
 #define NORMAL_TAG_HEX_LENGTH 22  //正常的TAG, HEX格式轉成String的長度, 例如44-16-1-ed-ac-3c-d-e-30-0-e2-0-81-81-81-6-2-55-13-30-91-b 為 22
 #define maxDelayTimeSameTag 30000  //幾秒內重複的內容就忽略
 #define debugOutput 0
-#define delayTime_after 60
-#define delayTime_before 15
+#define delayTime_after 35
+#define delayTime_before 10
 
 //-->  Command: Inventory 
 //-->     [0] [1]   [2]     [3]           [4]   [5]   [6~ ]
@@ -207,7 +207,9 @@ void readSerialOut() {
       rfidGet = lastScan;
       
     }
+    
     if(debugOutput==1) Serial.println("--------------------------------------------------------------------------------------");
+    Serial.flush();
 }
 
 void setup()
@@ -237,6 +239,7 @@ void loop() {
   }else{ 
     
     myserial.print(command_scantag);
+    myserial.flush();
     delay(delayTime_after);
     /*
     if(i == true) {
