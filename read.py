@@ -217,15 +217,17 @@ lastTailTime = 0
 while True:
 
     lineRead = ser.readline()   # read a '\n' terminated line
-    #print (lineRead)
+    if(debugPrint==True): 
+        print ("")
+        print(lineRead)
     #lineRead = lineRead.decode('utf-8').rstrip()
     lineRead = lineRead.decode('ISO-8859-1')
-    if(debugPrint==True): print (lineRead)
+    if(debugPrint==True): print ( "converted to ISO-8859-1:" + lineRead)
 
     if(len(lineRead)>0):
         #print(urlHeadString + lineRead)
         #print('Length: {}'.format(len(lineRead)))
-        logger.info("Arduino: " + lineRead)
+        #logger.info("Arduino: " + lineRead)
 
 
         head = lineRead[:5].strip()
@@ -235,7 +237,8 @@ while True:
             print('timer:{}   lastTag={}  nowTag={}'.format(time.time()-lastTailTime, lastTail, tail))
 
         if(head=="TAG:" and (tail != lastTail) and (time.time()-lastTailTime>tagRepeatSeconds)):
-     
+
+            logger.info("Arduino: " + lineRead)
             try:
                 webReply = urllib.request.urlopen(urlHeadString + tail).read()
                 webReply = webReply.decode('utf-8').rstrip()
@@ -299,5 +302,7 @@ while True:
             logger.info("Display screen saveer.")
             lcd.displayImg("rfidbg.jpg")
             screenSaverNow = True
+
+        if(debugPrint==True): print ("-------------------------------------------------------------------")
 
 ser.close()
