@@ -217,18 +217,16 @@ lastTailTime = 0
 while True:
 
     lineRead = ser.readline()   # read a '\n' terminated line
-    if(debugPrint==True): 
-        print ("")
-        print(lineRead)
-    #lineRead = lineRead.decode('utf-8').rstrip()
-    lineRead = lineRead.decode('ISO-8859-1')
-    if(debugPrint==True): print ( "converted to ISO-8859-1:" + lineRead)
+    #if(debugPrint==True): 
+    #    print ("")
+    #    print('Length: {}'.format(len(lineRead)))
+    #    print(lineRead)
+    #lineRead = lineRead.decode('ISO-8859-1')
+    #if(debugPrint==True): print ( "converted to ISO-8859-1:" + lineRead)
 
     if(len(lineRead)>0):
-        #print(urlHeadString + lineRead)
-        #print('Length: {}'.format(len(lineRead)))
-        #logger.info("Arduino: " + lineRead)
-
+        lineRead = lineRead.decode('ISO-8859-1')
+        if(debugPrint==True): print ( "converted to ISO-8859-1:" + lineRead)
 
         head = lineRead[:5].strip()
         tail = lineRead[5:].strip()
@@ -236,7 +234,7 @@ while True:
             print('lineRead[:5]={}  lineRead[5:]=={}'.format(head,tail))
             print('timer:{}   lastTag={}  nowTag={}'.format(time.time()-lastTailTime, lastTail, tail))
 
-        if(head=="TAG:" and (tail != lastTail) and (time.time()-lastTailTime>tagRepeatSeconds)):
+        if(head=="TAG:" and ((tail != lastTail) or (time.time()-lastTailTime>tagRepeatSeconds))):
 
             logger.info("Arduino: " + lineRead)
             try:
@@ -304,5 +302,7 @@ while True:
             screenSaverNow = True
 
         if(debugPrint==True): print ("-------------------------------------------------------------------")
+    
+    ser.flushInput()
 
 ser.close()
