@@ -12,7 +12,7 @@ import random
 from libraryCH.device.lcd import ILI9341
 import paho.mqtt.client as mqtt
 
-debugPrint = True
+debugPrint = False
 
 #幾秒內重複的TAG不算.
 tagRepeatSeconds = 30
@@ -57,7 +57,7 @@ if(localCameraEnabled==True):
         camera.cameraResolution(resolution=(1280, 720))   #拍攝的相片尺寸
 
 #從USB接收RFID 訊息
-ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+ser = serial.Serial('/dev/ttyACM1', 9600, timeout=1)
 
 #LCD設定
 lcd_LineNow = 0
@@ -210,13 +210,23 @@ mqttc.username_pw_set(MQTTuser, MQTTpwd)
 lastTail = ""  #last TAG seen
 lastTailTime = 0
 
+#Problem or system hang
+nodataProblem = 0  #目前是否發生無RFID data的問題
+
 #-------------------------------------------------------------------------
 #mqttc.connect(MQTTaddress, MQTTport, MQTTtimeout)
 #mqttc.publish(ChannelPublish, '[{"Uid":"30-0-e2-0-81-81-81-6-2-55-13-50-8c-a9","EmpNo":"200002","EmpCName":"龔執豪","TagType":"E"}]')
 #speakWelcome(uid="200002")
 while True:
 
-    lineRead = ser.readline()   # read a '\n' terminated line
+    try:
+        lineRead = ser.readline()   # read a '\n' terminated line
+    
+    except Exception:
+        logger.info("RFID serial port disconnected!")
+        if(debugPrint==True): print("RFID serial port disconnected!")
+        lineRead = ""
+        pass
     #if(debugPrint==True): 
     #    print ("")
     #    print('Length: {}'.format(len(lineRead)))
@@ -225,6 +235,8 @@ while True:
     #if(debugPrint==True): print ( "converted to ISO-8859-1:" + lineRead)
 
     if(len(lineRead)>0):
+        nodataProblem = 0
+
         lineRead = lineRead.decode('ISO-8859-1')
         if(debugPrint==True): print ( "converted to ISO-8859-1:" + lineRead)
 
@@ -302,7 +314,21 @@ while True:
             screenSaverNow = True
 
         if(debugPrint==True): print ("-------------------------------------------------------------------")
-    
-    ser.flushInput()
+
+    else:
+        if(nodataProblem==0):
+            lcd.displayImg("rfidbg.jpg")
+            screenSaverNow = True
+            logger.info("Display screen saveer.")
+            nodataProblem = 1
+
+    try:
+        ser.flushInput()
+
+    except Exception:
+        logger.info("RFID serial port disconnected!")
+        if(debugPrint==True): print("RFID serial port disconnected!")
+        lineRead = ""
+        pass        
 
 ser.close()
